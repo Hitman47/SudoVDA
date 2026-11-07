@@ -850,6 +850,22 @@ void IndirectDeviceContext::SetRenderAdapter(const LUID& AdapterLuid) {
 }
 
 NTSTATUS IndirectDeviceContext::CreateMonitor(IndirectMonitorContext*& pMonitorContext, uint8_t* edidData, const GUID& containerId, const VirtualMonitorMode& preferredMode) {
+	pMonitorContext = nullptr;
+
+	if (m_Adapter == nullptr) {
+		if (edidData != nullptr && edidData != edid_base) {
+			free(edidData);
+		}
+		return STATUS_DEVICE_NOT_READY;
+	}
+
+	if (edidData == nullptr || freeConnectorSlots.empty()) {
+		if (edidData != nullptr && edidData != edid_base) {
+			free(edidData);
+		}
+		return edidData == nullptr ? STATUS_INVALID_PARAMETER : STATUS_TOO_MANY_NODES;
+	}
+
 	// ==============================
 	// TODO: In a real driver, the EDID should be retrieved dynamically from a connected physical monitor. The EDIDs
 	// provided here are purely for demonstration.
@@ -878,7 +894,7 @@ NTSTATUS IndirectDeviceContext::CreateMonitor(IndirectMonitorContext*& pMonitorC
 	MonitorCreate.pMonitorInfo = &MonitorInfo;
 
 	// Create a monitor object with the specified monitor descriptor
-	IDARG_OUT_MONITORCREATE MonitorCreateOut;
+	IDARG_OUT_MONITORCREATE MonitorCreateOut = {};
 	NTSTATUS Status = IddCxMonitorCreate(m_Adapter, &MonitorCreate, &MonitorCreateOut);
 	if (NT_SUCCESS(Status))
 	{
@@ -895,7 +911,7 @@ NTSTATUS IndirectDeviceContext::CreateMonitor(IndirectMonitorContext*& pMonitorC
 		pMonitorContext->m_Adapter = m_Adapter;
 
 		// Tell the OS that the monitor has been plugged in
-		IDARG_OUT_MONITORARRIVAL ArrivalOut;
+		IDARG_OUT_MONITORARRIVAL ArrivalOut = {};
 		Status = IddCxMonitorArrival(MonitorCreateOut.MonitorObject, &ArrivalOut);
 		if (NT_SUCCESS(Status)) {
 			pMonitorContext->adapterLuid = ArrivalOut.OsAdapterLuid;
@@ -994,6 +1010,10 @@ void IndirectMonitorContext::UnassignSwapChain()
 #pragma region DDI Callbacks
 
 void IndirectDeviceContext::_TestCreateMonitor() {
+	if (m_Adapter == nullptr || freeConnectorSlots.empty()) {
+		return;
+	}
+
 	auto connectorIndex = freeConnectorSlots.front();
 	std::string idx = std::to_string(connectorIndex);
 	std::string serialStr = "VDD2408";
