@@ -1044,13 +1044,14 @@ NTSTATUS SudoVDAAdapterInitFinished(IDDCX_ADAPTER AdapterObject, const IDARG_IN_
 		}
 	}
 
-	if (testMode) {
+	if (testMode && NT_SUCCESS(pInArgs->AdapterInitStatus)) {
 		auto* pDeviceContextWrapper = WdfObjectGet_IndirectDeviceContextWrapper(AdapterObject);
-		if (NT_SUCCESS(pInArgs->AdapterInitStatus))
-		{
-			for (size_t i = 0; i < 3; i++) {
-				pDeviceContextWrapper->pContext->_TestCreateMonitor();
-			}
+		if (pDeviceContextWrapper == nullptr || pDeviceContextWrapper->pContext == nullptr) {
+			return STATUS_INVALID_DEVICE_STATE;
+		}
+
+		for (size_t i = 0; i < 3; i++) {
+			pDeviceContextWrapper->pContext->_TestCreateMonitor();
 		}
 	}
 
@@ -1439,11 +1440,21 @@ NTSTATUS SudoVDAMonitorQueryModes2(IDDCX_MONITOR MonitorObject, const IDARG_IN_Q
 _Use_decl_annotations_
 NTSTATUS SudoVDAMonitorAssignSwapChain(IDDCX_MONITOR MonitorObject, const IDARG_IN_SETSWAPCHAIN* pInArgs)
 {
+	if (pInArgs == nullptr) {
+		return STATUS_INVALID_PARAMETER;
+	}
+
 	auto* pMonitorContextWrapper = WdfObjectGet_IndirectMonitorContextWrapper(MonitorObject);
+	if (pMonitorContextWrapper == nullptr || pMonitorContextWrapper->pContext == nullptr) {
+		return STATUS_INVALID_DEVICE_STATE;
+	}
 
 	if (preferredAdapterChanged) {
 		if (memcmp(&pInArgs->RenderAdapterLuid, &preferredAdapterLuid, sizeof(LUID))) {
 			IDARG_IN_ADAPTERSETRENDERADAPTER inArgs{preferredAdapterLuid};
+			if (pMonitorContextWrapper->pContext->m_Adapter == nullptr) {
+				return STATUS_DEVICE_NOT_READY;
+			}
 			IddCxAdapterSetRenderAdapter(pMonitorContextWrapper->pContext->m_Adapter, &inArgs);
 			return STATUS_GRAPHICS_INDIRECT_DISPLAY_ABANDON_SWAPCHAIN;
 		}
