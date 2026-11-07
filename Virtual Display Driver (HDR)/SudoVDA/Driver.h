@@ -111,7 +111,7 @@ namespace Microsoft
 			IndirectDeviceContext(_In_ WDFDEVICE WdfDevice);
 			virtual ~IndirectDeviceContext();
 
-			void InitAdapter();
+			NTSTATUS InitAdapter();
 
 			void SetRenderAdapter(const LUID& AdapterLuid);
 
