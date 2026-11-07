@@ -780,14 +780,13 @@ IndirectDeviceContext::~IndirectDeviceContext()
 {
 }
 
-void IndirectDeviceContext::InitAdapter()
+NTSTATUS IndirectDeviceContext::InitAdapter()
 {
-	// ==============================
-	// TODO: Update the below diagnostic information in accordance with the target hardware. The strings and version
-	// numbers are used for telemetry and may be displayed to the user in some situations.
-	//
-	// This is also where static per-adapter capabilities are determined.
-	// ==============================
+	// The adapter is initialized once for this device context. Do not submit a
+	// second asynchronous initialization while a previous adapter is alive.
+	if (m_Adapter != nullptr) {
+		return STATUS_SUCCESS;
+	}
 
 	IDDCX_ADAPTER_CAPS AdapterCaps = {};
 	AdapterCaps.Size = sizeof(AdapterCaps);
@@ -796,25 +795,20 @@ void IndirectDeviceContext::InitAdapter()
 		AdapterCaps.Flags = IDDCX_ADAPTER_FLAGS_CAN_PROCESS_FP16;
 	}
 
-	// Declare basic feature support for the adapter (required)
 	AdapterCaps.MaxMonitorsSupported = MaxVirtualMonitorCount;
 	AdapterCaps.EndPointDiagnostics.Size = sizeof(AdapterCaps.EndPointDiagnostics);
 	AdapterCaps.EndPointDiagnostics.GammaSupport = IDDCX_FEATURE_IMPLEMENTATION_NONE;
 	AdapterCaps.EndPointDiagnostics.TransmissionType = IDDCX_TRANSMISSION_TYPE_WIRED_OTHER;
-
-	// Declare your device strings for telemetry (required)
 	AdapterCaps.EndPointDiagnostics.pEndPointFriendlyName = L"SudoMaker Virtual Display Adapter";
 	AdapterCaps.EndPointDiagnostics.pEndPointManufacturerName = L"SudoMaker";
 	AdapterCaps.EndPointDiagnostics.pEndPointModelName = L"SudoVDA";
 
-	// Declare your hardware and firmware versions (required)
 	IDDCX_ENDPOINT_VERSION Version = {};
 	Version.Size = sizeof(Version);
 	Version.MajorVer = 1;
 	AdapterCaps.EndPointDiagnostics.pFirmwareVersion = &Version;
 	AdapterCaps.EndPointDiagnostics.pHardwareVersion = &Version;
 
-	// Initialize a WDF context that can store a pointer to the device context object
 	WDF_OBJECT_ATTRIBUTES Attr;
 	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attr, IndirectDeviceContextWrapper);
 
@@ -823,19 +817,25 @@ void IndirectDeviceContext::InitAdapter()
 	AdapterInit.pCaps = &AdapterCaps;
 	AdapterInit.ObjectAttributes = &Attr;
 
-	// Start the initialization of the adapter, which will trigger the AdapterFinishInit callback later
-	IDARG_OUT_ADAPTER_INIT AdapterInitOut;
+	IDARG_OUT_ADAPTER_INIT AdapterInitOut = {};
 	NTSTATUS Status = IddCxAdapterInitAsync(&AdapterInit, &AdapterInitOut);
-
-	if (NT_SUCCESS(Status))
-	{
-		// Store a reference to the WDF adapter handle
-		m_Adapter = AdapterInitOut.AdapterObject;
-
-		// Store the device context object into the WDF object context
-		auto* pContext = WdfObjectGet_IndirectDeviceContextWrapper(AdapterInitOut.AdapterObject);
-		pContext->pContext = this;
+	if (!NT_SUCCESS(Status)) {
+		return Status;
 	}
+
+	if (AdapterInitOut.AdapterObject == nullptr) {
+		return STATUS_DEVICE_NOT_READY;
+	}
+
+	m_Adapter = AdapterInitOut.AdapterObject;
+	auto* pContext = WdfObjectGet_IndirectDeviceContextWrapper(m_Adapter);
+	if (pContext == nullptr) {
+		m_Adapter = {};
+		return STATUS_INVALID_DEVICE_STATE;
+	}
+
+	pContext->pContext = this;
+	return STATUS_SUCCESS;
 }
 
 void IndirectDeviceContext::SetRenderAdapter(const LUID& AdapterLuid) {
