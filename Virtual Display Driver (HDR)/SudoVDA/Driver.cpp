@@ -551,9 +551,11 @@ NTSTATUS SudoVDADeviceD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE PreviousS
 	// This function is called by WDF to start the device in the fully-on power state.
 
 	auto* pContext = WdfObjectGet_IndirectDeviceContextWrapper(Device);
-	pContext->pContext->InitAdapter();
+	if (pContext == nullptr || pContext->pContext == nullptr) {
+		return STATUS_INVALID_DEVICE_STATE;
+	}
 
-	return STATUS_SUCCESS;
+	return pContext->pContext->InitAdapter();
 }
 
 #pragma region Direct3DDevice
@@ -839,6 +841,10 @@ NTSTATUS IndirectDeviceContext::InitAdapter()
 }
 
 void IndirectDeviceContext::SetRenderAdapter(const LUID& AdapterLuid) {
+	if (m_Adapter == nullptr) {
+		return;
+	}
+
 	IDARG_IN_ADAPTERSETRENDERADAPTER inArgs{AdapterLuid};
 	IddCxAdapterSetRenderAdapter(m_Adapter, &inArgs);
 }
