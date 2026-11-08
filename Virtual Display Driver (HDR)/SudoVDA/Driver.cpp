@@ -1033,6 +1033,10 @@ void IndirectDeviceContext::_TestCreateMonitor() {
 _Use_decl_annotations_
 NTSTATUS SudoVDAAdapterInitFinished(IDDCX_ADAPTER AdapterObject, const IDARG_IN_ADAPTER_INIT_FINISHED* pInArgs)
 {
+	if (AdapterObject == nullptr || pInArgs == nullptr) {
+		return STATUS_INVALID_PARAMETER;
+	}
+
 	// UNREFERENCED_PARAMETER(AdapterObject);
 	// UNREFERENCED_PARAMETER(pInArgs);
 
@@ -1302,10 +1306,15 @@ NTSTATUS SudoVDAMonitorGetDefaultModes(IDDCX_MONITOR MonitorObject, const IDARG_
 _Use_decl_annotations_
 NTSTATUS SudoVDAMonitorQueryModes(IDDCX_MONITOR MonitorObject, const IDARG_IN_QUERYTARGETMODES* pInArgs, IDARG_OUT_QUERYTARGETMODES* pOutArgs)
 {
-	UNREFERENCED_PARAMETER(MonitorObject);
+	if (MonitorObject == nullptr || pInArgs == nullptr || pOutArgs == nullptr) {
+		return STATUS_INVALID_PARAMETER;
+	}
 
 	pOutArgs->TargetModeBufferOutputCount = (UINT) std::size(s_DefaultModes);
 	auto* pMonitorContextWrapper = WdfObjectGet_IndirectMonitorContextWrapper(MonitorObject);
+	if (pMonitorContextWrapper == nullptr || pMonitorContextWrapper->pContext == nullptr) {
+		return STATUS_INVALID_DEVICE_STATE;
+	}
 	if (pMonitorContextWrapper->pContext->preferredMode.Width) {
 		pOutArgs->TargetModeBufferOutputCount += std::size(mode_scale_factors) * 2;
 	}
@@ -1372,11 +1381,16 @@ NTSTATUS SudoVDAMonitorQueryModes(IDDCX_MONITOR MonitorObject, const IDARG_IN_QU
 _Use_decl_annotations_
 NTSTATUS SudoVDAMonitorQueryModes2(IDDCX_MONITOR MonitorObject, const IDARG_IN_QUERYTARGETMODES2* pInArgs, IDARG_OUT_QUERYTARGETMODES* pOutArgs)
 {
-	UNREFERENCED_PARAMETER(MonitorObject);
+	if (MonitorObject == nullptr || pInArgs == nullptr || pOutArgs == nullptr) {
+		return STATUS_INVALID_PARAMETER;
+	}
 
 	pOutArgs->TargetModeBufferOutputCount = (UINT) std::size(s_DefaultModes);
 
 	auto* pMonitorContextWrapper = WdfObjectGet_IndirectMonitorContextWrapper(MonitorObject);
+	if (pMonitorContextWrapper == nullptr || pMonitorContextWrapper->pContext == nullptr) {
+		return STATUS_INVALID_DEVICE_STATE;
+	}
 
 	if (pMonitorContextWrapper->pContext->preferredMode.Width) {
 		pOutArgs->TargetModeBufferOutputCount += std::size(mode_scale_factors) * 2;
@@ -1468,7 +1482,15 @@ NTSTATUS SudoVDAMonitorAssignSwapChain(IDDCX_MONITOR MonitorObject, const IDARG_
 _Use_decl_annotations_
 NTSTATUS SudoVDAMonitorUnassignSwapChain(IDDCX_MONITOR MonitorObject)
 {
+	if (MonitorObject == nullptr) {
+		return STATUS_INVALID_PARAMETER;
+	}
+
 	auto* pMonitorContextWrapper = WdfObjectGet_IndirectMonitorContextWrapper(MonitorObject);
+	if (pMonitorContextWrapper == nullptr || pMonitorContextWrapper->pContext == nullptr) {
+		return STATUS_INVALID_DEVICE_STATE;
+	}
+
 	pMonitorContextWrapper->pContext->UnassignSwapChain();
 	return STATUS_SUCCESS;
 }
